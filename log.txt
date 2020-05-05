@@ -1,0 +1,3 @@
+2020/05/04 23:41:44 user arthur registered
+2020/05/04 23:41:46 invalid cookie b86c99ea-cf7c-494b-bd0c-0a9e29d5db12
+2020/05/04 23:41:50 invalid cookie b86c99ea-cf7c-494b-bd0c-0a9e29d5db12
