@@ -78,9 +78,6 @@ func login(w http.ResponseWriter, r *http.Request) {
 			sessions[c.Value] = name
 
 			http.Redirect(w, r, "/home", http.StatusSeeOther)
-
-		} else {
-
 		}
 	}
 	tmp.ExecuteTemplate(w, "login.html", nil)
@@ -89,6 +86,19 @@ func home(w http.ResponseWriter, r *http.Request) {
 	c, _ := r.Cookie("session")
 	tmp.ExecuteTemplate(w, "home.html", sessions[c.Value])
 }
+
+func logout(w http.ResponseWriter, r *http.Request) {
+	cookie, _ := r.Cookie("session")
+	delete(sessions, cookie.Value)
+	cookie = &http.Cookie{
+		Name:   "Session",
+		Value:  "",
+		MaxAge: -1,
+	}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func myLog(message string) {
 	/* ==============================writing=log==============================*/
 	f, _ := os.OpenFile("log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
@@ -102,6 +112,7 @@ func main() {
 	http.HandleFunc("/", index)
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
+	http.HandleFunc("/logout", logout)
 	http.HandleFunc("/home", home)
 	http.ListenAndServe(":5000", nil)
 }
