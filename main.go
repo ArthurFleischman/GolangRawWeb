@@ -84,6 +84,9 @@ func login(w http.ResponseWriter, r *http.Request) {
 }
 func home(w http.ResponseWriter, r *http.Request) {
 	c, _ := r.Cookie("session")
+	if _, ok := sessions[c.Value]; !ok {
+		http.Redirect(w, r, "/", http.StatusBadGateway)
+	}
 	tmp.ExecuteTemplate(w, "home.html", sessions[c.Value])
 }
 
