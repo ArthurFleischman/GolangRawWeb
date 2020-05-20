@@ -1,13 +1,28 @@
-a{
+div{
+    
+    background-color:purple;
+}
+#appBar button {
+    color: white;
     text-decoration: none;
-    list-style: none;
-    color: red;
-    padding-right: 20px;
+    background-color: purple;
+    font-size: 18px;
+    padding-left: 25px;
+    padding-right: 25px;
 }
-li{
-    list-style: none;
+#appBar .regular{
+    border: none;
 }
-ul{
-    list-style: none;
-    display: inline;
+#appBar #special{
+    border-radius: 70px;
+    border-color: white;
+    border-style: solid;
+
+}
+#logo{
+    
+    vertical-align: middle;
+    padding-left: 50px;
+    padding-right: 50px;
+    height: 60px;
 }

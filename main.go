@@ -7,50 +7,46 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/TKfleBR/GolangRawWeb/auth"
+	"github.com/TKfleBR/GolangRawWeb/db"
+	"github.com/TKfleBR/GolangRawWeb/models"
 	uuid "github.com/satori/go.uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
-type user struct {
-	Name     string
-	password string
-}
-
-var users = map[string]user{}
+var users = map[string]models.User{}
 
 var sessions = map[string]string{}
-
-var list []user
 
 var tmp *template.Template
 
 func init() {
-	tmp = template.Must(template.ParseGlob("templates/*.html"))
-
-}
-
-func index(w http.ResponseWriter, r *http.Request) {
-	tmp.ExecuteTemplate(w, "index.html", nil)
-}
-
-func signup(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		name := r.FormValue("username")
-		pass := r.FormValue("password")
-		u := user{Name: name, password: pass}
-		users[name] = u
-		logMessage := fmt.Sprintf("user %s registered\n", u.Name)
-		log.Printf(logMessage)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+	tmp = template.Must(template.ParseGlob("templates/*.gohtml"))
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("css"))))
+	type user struct {
+		Name     string
+		password []byte
 	}
-	tmp.ExecuteTemplate(w, "signup.html", nil)
+}
+
+//func
+func functionLogout(w http.ResponseWriter, r *http.Request) {
+	cookie, _ := r.Cookie("session")
+	delete(sessions, cookie.Value)
+	cookie = &http.Cookie{
+		Name:   "session",
+		Value:  "",
+		MaxAge: -1,
+	}
+	http.SetCookie(w, cookie)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 func isLogged(r *http.Request) bool {
 	c, err := r.Cookie("session")
 	if err != nil {
 		log.Println("user not logged in")
 		return false
-	} else if sessions[c.Value] != "" {
-		fmt.Println("ok")
+	} else if _, ok := sessions[c.Value]; ok {
 		return true
 	} else {
 		logMessage := fmt.Sprintf("invalid cookie %s\n", c.Value)
@@ -58,50 +54,6 @@ func isLogged(r *http.Request) bool {
 		return false
 	}
 }
-
-func login(w http.ResponseWriter, r *http.Request) {
-	//Check if user already has a cookie(aka is logged)
-	if isLogged(r) {
-		http.Redirect(w, r, "/home", http.StatusSeeOther)
-		return
-	}
-	if r.Method == http.MethodPost {
-		name := r.FormValue("username")
-		pass := r.FormValue("password")
-		if users[name].Name == name && users[pass].password == pass {
-			id := uuid.NewV4()
-			c := &http.Cookie{
-				Name:  "session",
-				Value: id.String(),
-			}
-			http.SetCookie(w, c)
-			sessions[c.Value] = name
-
-			http.Redirect(w, r, "/home", http.StatusSeeOther)
-		}
-	}
-	tmp.ExecuteTemplate(w, "login.html", nil)
-}
-func home(w http.ResponseWriter, r *http.Request) {
-	c, _ := r.Cookie("session")
-	if _, ok := sessions[c.Value]; !ok {
-		http.Redirect(w, r, "/", http.StatusBadGateway)
-	}
-	tmp.ExecuteTemplate(w, "home.html", sessions[c.Value])
-}
-
-func logout(w http.ResponseWriter, r *http.Request) {
-	cookie, _ := r.Cookie("session")
-	delete(sessions, cookie.Value)
-	cookie = &http.Cookie{
-		Name:   "Session",
-		Value:  "",
-		MaxAge: -1,
-	}
-	http.SetCookie(w, cookie)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
 func myLog(message string) {
 	/* ==============================writing=log==============================*/
 	f, _ := os.OpenFile("log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
@@ -110,12 +62,80 @@ func myLog(message string) {
 	log.Printf(message)
 }
 
+//views
+func viewIndex(w http.ResponseWriter, r *http.Request) {
+	tmp.ExecuteTemplate(w, "index.gohtml", nil)
+}
+
+func viewSignup(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodPost {
+		name := r.FormValue("username")
+		pass := r.FormValue("password")
+		cryptoPassword, _ := bcrypt.GenerateFromPassword([]byte(pass), bcrypt.MinCost)
+		u := models.User{Name: name, Password: cryptoPassword}
+		err := db.InsertUser(u)
+		if err != nil {
+			fmt.Println("error signup")
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+	tmp.ExecuteTemplate(w, "signup.gohtml", nil)
+}
+
+func viewHome(w http.ResponseWriter, r *http.Request) {
+	c, _ := r.Cookie("session")
+	if _, ok := sessions[c.Value]; !ok {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+	tmp.ExecuteTemplate(w, "home.gohtml", sessions[c.Value])
+}
+func viewLogin(w http.ResponseWriter, r *http.Request) {
+	//Check if user already has a cookie(aka is logged)
+	if isLogged(r) {
+		http.Redirect(w, r, "/home", http.StatusSeeOther)
+		return
+	}
+	//login post request
+	if r.Method == http.MethodPost {
+		var u models.User
+		u.Name = r.FormValue("username")
+		u.Password = []byte(r.FormValue("password"))
+		if !auth.User(&u, u.Password) {
+			fmt.Fprintln(w, "username and/or password does not match")
+			return
+		}
+
+		id := uuid.NewV4()
+		c := &http.Cookie{
+			Name:  "session",
+			Value: id.String(),
+		}
+		http.SetCookie(w, c)
+		sessions[c.Value] = u.Name
+		http.Redirect(w, r, "/home", http.StatusSeeOther)
+
+	}
+	tmp.ExecuteTemplate(w, "login.gohtml", nil)
+}
+
 func main() {
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("css"))))
-	http.HandleFunc("/", index)
-	http.HandleFunc("/signup", signup)
-	http.HandleFunc("/login", login)
-	http.HandleFunc("/logout", logout)
-	http.HandleFunc("/home", home)
-	http.ListenAndServe(":5000", nil)
+	//getviews
+	http.HandleFunc("/home", viewHome)
+	http.HandleFunc("/", viewIndex)
+	http.HandleFunc("/signup", viewSignup)
+	http.HandleFunc("/login", viewLogin)
+	// functions
+	http.HandleFunc("/logout", functionLogout)
+	//setup
+	var port string
+	if len(os.Args) < 2 {
+		port = "5000"
+	} else {
+		port = os.Args[1]
+	}
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatalln("given port is not valid", err)
+	}
 }
